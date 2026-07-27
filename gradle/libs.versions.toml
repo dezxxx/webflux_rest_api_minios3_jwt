@@ -1,0 +1,22 @@
+[versions]
+awssdk = "2.49.3"
+jjwt = "0.12.6"
+# 3.x is the Spring Boot 4 line; 2.x targets Boot 3 and fails at startup here
+springdoc = "3.0.3"
+# Spring Boot 4.1 does not manage Testcontainers, so the version is pinned here
+testcontainers = "1.21.4"
+
+[libraries]
+awssdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "awssdk" }
+awssdk-s3 = { module = "software.amazon.awssdk:s3" }
+awssdk-netty = { module = "software.amazon.awssdk:netty-nio-client" }
+
+jjwt-api = { module = "io.jsonwebtoken:jjwt-api", version.ref = "jjwt" }
+jjwt-impl = { module = "io.jsonwebtoken:jjwt-impl", version.ref = "jjwt" }
+jjwt-jackson = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
+
+springdoc-webflux-ui = { module = "org.springdoc:springdoc-openapi-starter-webflux-ui", version.ref = "springdoc" }
+
+testcontainers-junit = { module = "org.testcontainers:junit-jupiter", version.ref = "testcontainers" }
+testcontainers-mysql = { module = "org.testcontainers:mysql", version.ref = "testcontainers" }
+testcontainers-minio = { module = "org.testcontainers:minio", version.ref = "testcontainers" }
