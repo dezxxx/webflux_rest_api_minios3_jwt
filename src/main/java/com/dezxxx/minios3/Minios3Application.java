@@ -1,13 +1,13 @@
-package com.dezxxx.webflux_rest_api_minios3_jwt;
+package com.dezxxx.minios3;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class WebfluxRestApiMinios3JwtApplication {
+public class Minios3Application {
 
 	public static void main(String[] args) {
-		SpringApplication.run(WebfluxRestApiMinios3JwtApplication.class, args);
+		SpringApplication.run(Minios3Application.class, args);
 	}
 
 }

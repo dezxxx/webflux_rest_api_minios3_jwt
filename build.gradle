@@ -1,11 +1,11 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '4.1.0'
-	id 'io.spring.dependency-management' version '1.1.7'
+	id 'org.springframework.boot' version "$springBootVersion"
+	id 'io.spring.dependency-management' version "$springDependencyManagementVersion"
 }
 
 group = 'com.dezxxx'
-version = '0.0.1-SNAPSHOT'
+version = '1.0.0-SNAPSHOT'
 
 java {
 	toolchain {
@@ -31,17 +31,18 @@ dependencies {
 	runtimeOnly 'com.mysql:mysql-connector-j'
 
 	// --- S3 object storage (MinIO-compatible, async client) ---
-	implementation platform(libs.awssdk.bom)
-	implementation libs.awssdk.s3
-	implementation libs.awssdk.netty
+	// The BOM fixes the versions of every awssdk module below it
+	implementation platform("software.amazon.awssdk:bom:$awssdkVersion")
+	implementation 'software.amazon.awssdk:s3'
+	implementation 'software.amazon.awssdk:netty-nio-client'
 
 	// --- OpenAPI / Swagger UI (webflux flavour, not webmvc) ---
-	implementation libs.springdoc.webflux.ui
+	implementation "org.springdoc:springdoc-openapi-starter-webflux-ui:$springdocVersion"
 
 	// --- JWT ---
-	implementation libs.jjwt.api
-	runtimeOnly libs.jjwt.impl
-	runtimeOnly libs.jjwt.jackson
+	implementation "io.jsonwebtoken:jjwt-api:$jjwtVersion"
+	runtimeOnly "io.jsonwebtoken:jjwt-impl:$jjwtVersion"
+	runtimeOnly "io.jsonwebtoken:jjwt-jackson:$jjwtVersion"
 
 	// --- Lombok ---
 	compileOnly 'org.projectlombok:lombok'
@@ -54,9 +55,9 @@ dependencies {
 	// starters below sit on top of it and do not replace it.
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
-	testImplementation libs.testcontainers.junit
-	testImplementation libs.testcontainers.mysql
-	testImplementation libs.testcontainers.minio
+	testImplementation "org.testcontainers:junit-jupiter:$testcontainersVersion"
+	testImplementation "org.testcontainers:mysql:$testcontainersVersion"
+	testImplementation "org.testcontainers:minio:$testcontainersVersion"
 	testImplementation 'org.springframework.boot:spring-boot-starter-webflux-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-r2dbc-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'

@@ -115,6 +115,70 @@ MySQL and needs quoting wherever it appears.
 whether a user is let in at all, `ADMIN`/`MODERATOR`/`USER` decides what they may
 do. Merging them would make a blocked administrator inexpressible.
 
+## API
+
+The specification's OpenAPI section describes only two endpoints while its
+functional requirements ask for CRUD over all three entities, so the rest of the
+surface is derived from those requirements.
+
+| Method | Path | ADMIN | MODERATOR | USER |
+|---|---|---|---|---|
+| `POST` | `/auth/register` | — open, no token — |||
+| `POST` | `/auth/login` | — open, no token — |||
+| `GET` | `/users` | ✅ | ✅ | ❌ |
+| `GET` | `/users/{id}` | any | any | self only |
+| `POST` | `/users` | ✅ | ❌ | ❌ |
+| `PUT` | `/users/{id}` | ✅ | ❌ | ❌ |
+| `DELETE` | `/users/{id}` | ✅ | ❌ | ❌ |
+| `POST` | `/files` | ✅ | for self | for self |
+| `GET` | `/files` | all | all | own |
+| `GET` | `/files/{id}` | any | any | own |
+| `PUT` | `/files/{id}` | ✅ | ✅ | ❌ |
+| `DELETE` | `/files/{id}` | ✅ | ✅ | ❌ |
+| `POST` | `/events` | ✅ | ❌ | ❌ |
+| `GET` | `/events` | all | all | own |
+| `GET` | `/events/{id}` | any | any | own |
+| `PUT` | `/events/{id}` | ✅ | ✅ | ❌ |
+| `DELETE` | `/events/{id}` | ✅ | ✅ | ❌ |
+
+Registration is open and always produces `role = USER`, `status = ACTIVE` —
+accepting a role from the request body would make authorisation meaningless. A
+successful registration returns a token immediately, so no second call is needed.
+
+`POST /events` exists only because the requirements ask for full CRUD on Event.
+Events are normally created by the application itself on every upload, never by
+a client.
+
+### Deletion
+
+`DELETE` is a soft delete: it sets `deleted_at` and keeps the row, because the
+data is retained for later analysis. Every read filters on `deleted_at IS NULL`.
+
+```
+DELETE /files/{id}              soft — ADMIN, MODERATOR
+DELETE /files/{id}?hard=true    hard — ADMIN only, MODERATOR gets 403
+```
+
+Hard delete physically removes the row and the object in MinIO. Because the
+foreign keys are `RESTRICT`, the service walks the chain bottom-up — events, then
+files, then the user — and removes the S3 objects before the rows that hold their
+keys.
+
+### Roles vs ownership
+
+Role is checked before the method runs; ownership ("own files only") can only be
+checked after the row is loaded and its `user_id` is known. Ownership checks
+therefore live in the service layer, not in an annotation.
+
+### Tokens
+
+One access token, no refresh flow. When it expires the client logs in again. TTL
+is a day so that a token pasted into Swagger UI survives a working session;
+production would use minutes plus a refresh token.
+
+Status is not carried in the token, so blocking a user takes effect only once
+their current token expires.
+
 ## Project status
 
 Done:

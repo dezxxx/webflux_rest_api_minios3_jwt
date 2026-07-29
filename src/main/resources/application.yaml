@@ -1,6 +1,6 @@
 spring:
   application:
-    name: webflux_rest_api_minios3_jwt
+    name: minios3
 
   # Runtime access is reactive: r2dbc:mysql, not jdbc:mysql
   r2dbc:
@@ -26,8 +26,9 @@ app:
     # Dev-only default. Override JWT_SECRET in every real environment.
     # HS256 requires at least 256 bits of key material.
     secret: ${JWT_SECRET:change-me-in-production-at-least-32-bytes-long}
-    access-token-ttl: 15m
-    refresh-token-ttl: 30d
+    # A single access token, no refresh flow: on expiry the client logs in again.
+    # A day is long enough to keep Swagger usable; production would use minutes.
+    access-token-ttl: 24h
     issuer: minios3
 
   s3:

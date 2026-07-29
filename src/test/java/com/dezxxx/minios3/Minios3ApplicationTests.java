@@ -1,10 +1,10 @@
-package com.dezxxx.webflux_rest_api_minios3_jwt;
+package com.dezxxx.minios3;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class WebfluxRestApiMinios3JwtApplicationTests {
+class Minios3ApplicationTests {
 
 	@Test
 	void contextLoads() {
