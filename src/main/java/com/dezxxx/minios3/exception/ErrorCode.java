@@ -1,0 +1,12 @@
+package com.dezxxx.minios3.exception;
+
+public enum ErrorCode {
+    VALIDATION_FAILED,
+    INVALID_CREDENTIALS,
+    USER_BLOCKED,
+    ACCESS_DENIED,
+    USERNAME_TAKEN,
+    RESOURCE_CONFLICT,
+    REQUEST_FAILED,
+    INTERNAL_ERROR
+}

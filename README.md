@@ -15,7 +15,7 @@ every upload is recorded as an event, and access is restricted by JWT-based role
 | Object storage | MinIO, accessed through AWS SDK v2 `S3AsyncClient` |
 | Security | Spring Security + JJWT |
 | Docs | springdoc-openapi (Swagger UI) |
-| Build | Gradle 9.5.1 with a version catalog |
+| Build | Gradle 9.5.1, dependency versions in `gradle.properties` |
 | Tests | JUnit 5, Mockito, Testcontainers |
 
 ### Why R2DBC and not JPA
@@ -55,7 +55,8 @@ gradlew build
 gradlew bootRun
 ```
 
-Flyway applies `V1__init.sql` on startup.
+Flyway applies `V1__init.sql` and `V2__seed_admin.sql` on startup. The second
+migration seeds the first administrator — see [Authentication](#authentication).
 
 | | |
 |---|---|
@@ -179,17 +180,98 @@ production would use minutes plus a refresh token.
 Status is not carried in the token, so blocking a user takes effect only once
 their current token expires.
 
+## Authentication
+
+`V2__seed_admin.sql` inserts the first administrator, because registration only
+ever grants `USER` and there would otherwise be no way to reach an ADMIN-only
+endpoint:
+
+```
+admin / admin        development only — change it in any real environment
+```
+
+Log in and keep the token:
+
+```bash
+curl -X POST http://localhost:8080/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"admin"}'
+```
+
+```json
+{ "token": "eyJhbGciOiJIUzI1NiJ9...", "username": "admin", "role": "ADMIN" }
+```
+
+Send it on every other call:
+
+```
+Authorization: Bearer <token>
+```
+
+### How a request is authenticated
+
+`JwtAuthenticationFilter` runs at the `AUTHENTICATION` position of the security
+chain. It reads the `Authorization` header, verifies the signature and expiry,
+and publishes an `Authentication` into the Reactor Context — the reactive
+replacement for `SecurityContextHolder`, which cannot work here because a single
+request is handled across several event-loop threads.
+
+The filter never rejects a request. A missing or invalid token simply leaves the
+request unauthenticated, and `AuthorizationWebFilter` decides what that means for
+the path being called. Rejecting inside the filter would break `/auth/login`,
+which is reached without a token by definition.
+
+The database is read once, during login. Afterwards the signed token is the only
+proof required, so no query happens per request.
+
+Form login and HTTP Basic are both disabled. They would otherwise answer with
+their own login prompt, and an unauthenticated call would get a `302` redirect
+instead of the `401` a REST client expects.
+
+### Error format
+
+Every failure returns the same shape, with a machine-readable `code` that stays
+stable even when the human message is reworded:
+
+```json
+{
+  "timestamp": "2026-07-31T01:15:17.673",
+  "status": 401,
+  "error": "Unauthorized",
+  "code": "INVALID_CREDENTIALS",
+  "message": "Invalid user name or password"
+}
+```
+
+| Status | `code` | |
+|---|---|---|
+| 400 | `VALIDATION_FAILED` | incoming DTO failed its constraints |
+| 401 | `INVALID_CREDENTIALS` | unknown username **or** wrong password |
+| 403 | `USER_BLOCKED` | credentials fine, account not `ACTIVE` |
+| 403 | `ACCESS_DENIED` | role does not allow the call |
+| 404 | `REQUEST_FAILED` | status chosen by Spring itself |
+| 409 | `USERNAME_TAKEN` | duplicate caught before the insert |
+| 409 | `RESOURCE_CONFLICT` | duplicate caught by the unique constraint |
+| 500 | `INTERNAL_ERROR` | logged with a stack trace, never returned to the client |
+
+`401` deliberately does not distinguish an unknown username from a wrong
+password. Saying which one failed would let an attacker enumerate valid
+usernames.
+
 ## Project status
 
 Done:
 
-- Gradle build, dependencies, version catalog
+- Gradle build and dependencies
 - Docker Compose: MySQL, MinIO, bucket provisioning
-- Flyway baseline schema
+- Flyway schema and seeded administrator
+- Entities, enums and repositories
+- JWT authentication: login, registration, security chain, global error handling
 
 Next:
 
-- Entities and repositories
-- JWT authentication and authorization
+- Swagger `Authorize` button (`@SecurityScheme`)
+- Unit tests for the service and mapper layers
+- Users, files and events CRUD with `@PreAuthorize`
 - S3 upload/download and event recording
 - OpenAPI annotations, integration tests, application Dockerfile
