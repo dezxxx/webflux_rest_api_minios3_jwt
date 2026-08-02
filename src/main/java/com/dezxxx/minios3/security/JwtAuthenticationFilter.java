@@ -43,6 +43,13 @@ public class JwtAuthenticationFilter implements WebFilter {
             return chain.filter(exchange);
         }
 
+        // A refresh token is signed with the same key and would otherwise be
+        // accepted here — it belongs to /auth/refresh and nowhere else.
+        if (!jwtTokenProvider.isAccessToken(claims)) {
+            log.debug("Rejected a token that is not an access token");
+            return chain.filter(exchange);
+        }
+
         var authorities = List.of(new SimpleGrantedAuthority(ROLE_PREFIX + jwtTokenProvider
                 .getRole(claims).name()));
 

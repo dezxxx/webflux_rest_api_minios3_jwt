@@ -76,6 +76,8 @@ environment. No real credentials belong in `application.yaml`.
 | `DB_NAME` | `minios3` | |
 | `DB_USER` / `DB_PASSWORD` | `root` / `root` | |
 | `JWT_SECRET` | dev placeholder | **must** be overridden; HS256 needs 256+ bits |
+| `JWT_ACCESS_TTL` | `15m` | raise it locally if re-authorising Swagger gets tedious |
+| `JWT_REFRESH_TTL` | `30d` | |
 | `S3_ENDPOINT` | `http://localhost:9000` | |
 | `S3_ACCESS_KEY` / `S3_SECRET_KEY` | `minioadmin` / `minioadmin` | |
 | `S3_BUCKET` | `files` | |
@@ -122,31 +124,49 @@ The specification's OpenAPI section describes only two endpoints while its
 functional requirements ask for CRUD over all three entities, so the rest of the
 surface is derived from those requirements.
 
+Every path is versioned — `/api/v1/...` — and each controller carries the same
+version in its name (`AuthControllerV1`, `UserControllerV1`). A breaking change
+to a payload then arrives as a new prefix and a new class beside the old one,
+instead of silently breaking clients already on the current contract.
+
 | Method | Path | ADMIN | MODERATOR | USER |
 |---|---|---|---|---|
-| `POST` | `/auth/register` | — open, no token — |||
-| `POST` | `/auth/login` | — open, no token — |||
-| `GET` | `/users` | ✅ | ✅ | ❌ |
-| `GET` | `/users/{id}` | any | any | self only |
-| `POST` | `/users` | ✅ | ❌ | ❌ |
-| `PUT` | `/users/{id}` | ✅ | ❌ | ❌ |
-| `DELETE` | `/users/{id}` | ✅ | ❌ | ❌ |
-| `POST` | `/files` | ✅ | for self | for self |
-| `GET` | `/files` | all | all | own |
-| `GET` | `/files/{id}` | any | any | own |
-| `PUT` | `/files/{id}` | ✅ | ✅ | ❌ |
-| `DELETE` | `/files/{id}` | ✅ | ✅ | ❌ |
-| `POST` | `/events` | ✅ | ❌ | ❌ |
-| `GET` | `/events` | all | all | own |
-| `GET` | `/events/{id}` | any | any | own |
-| `PUT` | `/events/{id}` | ✅ | ✅ | ❌ |
-| `DELETE` | `/events/{id}` | ✅ | ✅ | ❌ |
+| `POST` | `/api/v1/auth/register` | — open, no token — |||
+| `POST` | `/api/v1/auth/login` | — open, no token — |||
+| `POST` | `/api/v1/auth/refresh` | — open, the refresh token is the credential — |||
+| `POST` | `/api/v1/auth/logout` | — open, does nothing, see [Tokens](#tokens) — |||
+| `GET` | `/api/v1/users/me` | — any authenticated caller, own row — |||
+| `GET` | `/api/v1/users` | ✅ | ✅ | ❌ |
+| `GET` | `/api/v1/users/{id}` | ✅ | ✅ | ❌ — use `/me` |
+| `POST` | `/api/v1/users` | ✅ | ❌ | ❌ |
+| `PUT` | `/api/v1/users/{id}` | ✅ | ❌ | ❌ |
+| `DELETE` | `/api/v1/users/{id}` | ✅ | ❌ | ❌ |
+| `POST` | `/api/v1/files` | ✅ | for self | for self |
+| `GET` | `/api/v1/files` | all | all | own |
+| `GET` | `/api/v1/files/{id}` | any | any | own |
+| `PUT` | `/api/v1/files/{id}` | ✅ | ✅ | ❌ |
+| `DELETE` | `/api/v1/files/{id}` | ✅ | ✅ | ❌ |
+| `POST` | `/api/v1/events` | ✅ | ❌ | ❌ |
+| `GET` | `/api/v1/events` | all | all | own |
+| `GET` | `/api/v1/events/{id}` | any | any | own |
+| `PUT` | `/api/v1/events/{id}` | ✅ | ✅ | ❌ |
+| `DELETE` | `/api/v1/events/{id}` | ✅ | ✅ | ❌ |
 
 Registration is open and always produces `role = USER`, `status = ACTIVE` —
 accepting a role from the request body would make authorisation meaningless. A
-successful registration returns a token immediately, so no second call is needed.
+successful registration returns tokens immediately, so no second call is needed.
 
-`POST /events` exists only because the requirements ask for full CRUD on Event.
+That leaves `PUT /api/v1/users/{id}` as the only way a `MODERATOR` or a blocked
+account can come to exist: an administrator sets the role and the status there.
+Nothing else in the application writes either column apart from
+`V2__seed_admin.sql` — registration always produces an active `USER`. The new
+role reaches the user's own token at their next `/api/v1/auth/refresh`.
+
+A `USER` reads their own row through `/api/v1/users/me`, not through
+`/api/v1/users/{id}`: the caller is identified by the token, so no id is needed
+and no ownership check has to be repeated.
+
+`POST /api/v1/events` exists only because the requirements ask for full CRUD on Event.
 Events are normally created by the application itself on every upload, never by
 a client.
 
@@ -156,8 +176,8 @@ a client.
 data is retained for later analysis. Every read filters on `deleted_at IS NULL`.
 
 ```
-DELETE /files/{id}              soft — ADMIN, MODERATOR
-DELETE /files/{id}?hard=true    hard — ADMIN only, MODERATOR gets 403
+DELETE /api/v1/files/{id}              soft — ADMIN, MODERATOR
+DELETE /api/v1/files/{id}?hard=true    hard — ADMIN only, MODERATOR gets 403
 ```
 
 Hard delete physically removes the row and the object in MinIO. Because the
@@ -173,12 +193,32 @@ therefore live in the service layer, not in an annotation.
 
 ### Tokens
 
-One access token, no refresh flow. When it expires the client logs in again. TTL
-is a day so that a token pasted into Swagger UI survives a working session;
-production would use minutes plus a refresh token.
+Two tokens, **neither stored on the server**:
 
-Status is not carried in the token, so blocking a user takes effect only once
-their current token expires.
+| | TTL | Claims | Accepted by |
+|---|---|---|---|
+| access | 15 min | `sub`, `role`, `type=access` | every endpoint |
+| refresh | 30 days | `sub`, `type=refresh` | `/api/v1/auth/refresh` only |
+
+The client sends the access token; when it expires it posts the refresh token to
+`/api/v1/auth/refresh` and gets a fresh pair without retyping a password.
+
+`/api/v1/auth/refresh` re-reads the user row, and that is the only reason it exists. A
+changed role or a blocked account therefore takes effect within one access-token
+lifetime — 15 minutes — rather than lasting until the original token expires. The
+refresh token deliberately carries no `role`: a copy stored there would go stale
+and defeat the re-read.
+
+Both tokens are signed with the same key, so the `type` claim is what keeps them
+apart. Without it a 30-day refresh token would be accepted as a `Bearer` on every
+endpoint, and an access token could renew itself forever. `JwtAuthenticationFilter`
+accepts only `type=access`; `AuthService.refresh` only `type=refresh`.
+
+**There is no revocation.** A signed token is valid until `exp` by construction,
+and this application stores nothing that could mark one as dead. `POST /api/v1/auth/logout`
+returns `204` and does nothing — logging out is the client discarding both tokens.
+A stolen token works until it expires. That is what stateless JWT means, and it is
+the trade accepted here in exchange for never touching the database on a request.
 
 ## Authentication
 
@@ -190,23 +230,39 @@ endpoint:
 admin / admin        development only — change it in any real environment
 ```
 
-Log in and keep the token:
+Log in and keep both tokens:
 
 ```bash
-curl -X POST http://localhost:8080/auth/login \
+curl -X POST http://localhost:8080/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"admin"}'
 ```
 
 ```json
-{ "token": "eyJhbGciOiJIUzI1NiJ9...", "username": "admin", "role": "ADMIN" }
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
+  "username": "admin",
+  "role": "ADMIN"
+}
 ```
 
-Send it on every other call:
+Send the access token on every other call:
 
 ```
-Authorization: Bearer <token>
+Authorization: Bearer <accessToken>
 ```
+
+When it expires, trade the refresh token for a new pair:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/refresh \
+  -H 'Content-Type: application/json' \
+  -d '{"refreshToken":"eyJhbGciOiJIUzI1NiJ9..."}'
+```
+
+A client normally does this on any `401`: refresh once, retry the original
+request, and fall back to the login screen if the refresh itself fails.
 
 ### How a request is authenticated
 
@@ -218,11 +274,12 @@ request is handled across several event-loop threads.
 
 The filter never rejects a request. A missing or invalid token simply leaves the
 request unauthenticated, and `AuthorizationWebFilter` decides what that means for
-the path being called. Rejecting inside the filter would break `/auth/login`,
+the path being called. Rejecting inside the filter would break `/api/v1/auth/login`,
 which is reached without a token by definition.
 
-The database is read once, during login. Afterwards the signed token is the only
-proof required, so no query happens per request.
+The database is read only at `/api/v1/auth/login` and `/api/v1/auth/refresh`. Every other
+request is authenticated from the signature alone, so no query happens per
+request — roughly one read per fifteen minutes instead of one per call.
 
 Form login and HTTP Basic are both disabled. They would otherwise answer with
 their own login prompt, and an unauthenticated call would get a `302` redirect
@@ -247,6 +304,8 @@ stable even when the human message is reworded:
 |---|---|---|
 | 400 | `VALIDATION_FAILED` | incoming DTO failed its constraints |
 | 401 | `INVALID_CREDENTIALS` | unknown username **or** wrong password |
+| 401 | `EXPIRED_TOKEN` | refresh token ran out — log in again |
+| 401 | `INVALID_TOKEN` | malformed, forged, or the wrong token type |
 | 403 | `USER_BLOCKED` | credentials fine, account not `ACTIVE` |
 | 403 | `ACCESS_DENIED` | role does not allow the call |
 | 404 | `REQUEST_FAILED` | status chosen by Spring itself |
@@ -267,11 +326,15 @@ Done:
 - Flyway schema and seeded administrator
 - Entities, enums and repositories
 - JWT authentication: login, registration, security chain, global error handling
+- Access/refresh token pair, `/api/v1/auth/refresh`, `/api/v1/auth/logout`
+- User CRUD with `@PreAuthorize`, soft delete, and the guards that stop an
+  administrator demoting, blocking or deleting their own account
+- Versioned paths and controllers (`/api/v1`, `AuthControllerV1`)
+- Swagger: `Authorize` button, tags, per-operation descriptions and examples
 
 Next:
 
-- Swagger `Authorize` button (`@SecurityScheme`)
+- Files CRUD, S3 upload/download and event recording
+- Events CRUD
 - Unit tests for the service and mapper layers
-- Users, files and events CRUD with `@PreAuthorize`
-- S3 upload/download and event recording
-- OpenAPI annotations, integration tests, application Dockerfile
+- Integration tests, application Dockerfile

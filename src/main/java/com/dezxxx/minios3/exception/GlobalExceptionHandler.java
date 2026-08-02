@@ -20,6 +20,13 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(UserNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorResponseDto handleUserNotFoundException(UserNotFoundException e) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND, e.getMessage());
+    }
+
+
     @ExceptionHandler(InvalidCredentialsException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ErrorResponseDto handleInvalidCredentials(InvalidCredentialsException e) {
@@ -60,11 +67,27 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_FAILED, message);
     }
 
+    /** The refresh token ran out: the client has to log in again. */
+    @ExceptionHandler(ExpiredTokenException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ErrorResponseDto handleExpiredToken(ExpiredTokenException e) {
+        log.debug("Expired token presented: {}", e.getMessage());
+        return build(HttpStatus.UNAUTHORIZED, ErrorCode.EXPIRED_TOKEN, e.getMessage());
+    }
+
+    /** Forged, malformed, or the wrong kind of token — refreshing will not help. */
+    @ExceptionHandler(InvalidTokenException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ErrorResponseDto handleInvalidToken(InvalidTokenException e) {
+        log.debug("Invalid token presented: {}", e.getMessage());
+        return build(HttpStatus.UNAUTHORIZED, ErrorCode.INVALID_TOKEN, e.getMessage());
+    }
+
     /** Raised by @PreAuthorize when the role does not allow the call. */
     @ExceptionHandler(AccessDeniedException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ErrorResponseDto handleAccessDenied(AccessDeniedException e) {
-        return build(HttpStatus.FORBIDDEN, ErrorCode.ACCESS_DENIED, "Access denied");
+        return build(HttpStatus.FORBIDDEN, ErrorCode.ACCESS_DENIED, e.getMessage() != null ? e.getMessage() : "Access denied");
     }
 
     /** Spring already chose a status (404, 415, 406...) — keep it instead of masking it as 500. */

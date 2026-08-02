@@ -21,7 +21,7 @@ import org.springframework.security.web.server.context.NoOpServerSecurityContext
 
 public class SecurityConfig {
     private static final String[] PUBLIC_ENDPOINTS = {
-            "/auth/**",
+            "/api/v1/auth/**",
             "/v3/api-docs/**",
             "/swagger-ui.html",
             "/swagger-ui/**"

@@ -26,9 +26,12 @@ app:
     # Dev-only default. Override JWT_SECRET in every real environment.
     # HS256 requires at least 256 bits of key material.
     secret: ${JWT_SECRET:change-me-in-production-at-least-32-bytes-long}
-    # A single access token, no refresh flow: on expiry the client logs in again.
-    # A day is long enough to keep Swagger usable; production would use minutes.
-    access-token-ttl: 24h
+    # Two tokens, neither stored: the access token is short so that a changed role
+    # or a blocked user takes effect quickly, the refresh token is how the client
+    # gets a new one without asking for the password again.
+    # Raise the access TTL locally if re-authorising Swagger every 15 minutes annoys.
+    access-token-ttl: ${JWT_ACCESS_TTL:15m}
+    refresh-token-ttl: ${JWT_REFRESH_TTL:30d}
     issuer: minios3
 
   s3:
