@@ -9,7 +9,7 @@ public record RefreshRequestDto(
 
         @Schema(description = "The refreshToken from login, register or a previous refresh. "
                 + "An access token is rejected here.",
-                example = "eyJhbGciOiJIUzI1NiJ9...")
+                example = "<signed JWT>")
         @NotBlank
         String refreshToken) {
 }

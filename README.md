@@ -52,15 +52,18 @@ Build and run:
 
 ```bash
 gradlew build
-gradlew bootRun
+SPRING_PROFILES_ACTIVE=dev gradlew bootRun
 ```
+
+**The `dev` profile is required locally.** Without it the application refuses to
+start — see [Development defaults](#development-defaults).
 
 Flyway applies `V1__init.sql` and `V2__seed_admin.sql` on startup. The second
 migration seeds the first administrator — see [Authentication](#authentication).
 
 | | |
 |---|---|
-| Swagger UI | http://localhost:8080/swagger-ui.html |
+| Swagger UI | http://localhost:8080/swagger-ui/index.html |
 | OpenAPI spec | http://localhost:8080/v3/api-docs |
 | MinIO console | http://localhost:9001 (`minioadmin` / `minioadmin`) |
 
@@ -81,6 +84,37 @@ environment. No real credentials belong in `application.yaml`.
 | `S3_ENDPOINT` | `http://localhost:9000` | |
 | `S3_ACCESS_KEY` / `S3_SECRET_KEY` | `minioadmin` / `minioadmin` | |
 | `S3_BUCKET` | `files` | |
+
+### Development defaults
+
+`InsecureDefaultsGuard` checks three values at startup and **throws if any of them
+still holds its development default**:
+
+```
+app.jwt.secret          JWT_SECRET
+spring.r2dbc.password   DB_PASSWORD
+app.s3.secret-key       S3_SECRET_KEY
+```
+
+The check is skipped only while the `dev` profile is active, and `dev` has to be
+switched on deliberately — there is no default profile. That direction is chosen
+on purpose: if strictness depended on naming a `prod` profile instead, then
+forgetting to name it would silently leave every default in place, which is the
+accident the class exists to prevent. Forgetting it now costs a failed startup
+with a message naming the variable.
+
+`JWT_SECRET` is the one that matters. Whoever holds it can sign a token claiming
+any user name and the `ADMIN` role; the signature verifies, so the password is
+never consulted and no amount of care elsewhere helps.
+
+The `dev` profile also raises the access-token TTL to 8 hours, so a token pasted
+into Swagger UI lasts a working session instead of 15 minutes.
+
+`V2__seed_admin.sql` still runs in every profile — `admin` / `admin` exists
+wherever the migrations do. Making it dev-only would leave a fresh deployment
+with no administrator and no way to create one, since registration only ever
+grants `USER`. Bootstrapping the first administrator from the environment is the
+proper fix and is not implemented.
 
 ## Domain
 
@@ -240,8 +274,8 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 
 ```json
 {
-  "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
-  "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
+  "accessToken": "<signed JWT>",
+  "refreshToken": "<signed JWT>",
   "username": "admin",
   "role": "ADMIN"
 }
@@ -258,7 +292,7 @@ When it expires, trade the refresh token for a new pair:
 ```bash
 curl -X POST http://localhost:8080/api/v1/auth/refresh \
   -H 'Content-Type: application/json' \
-  -d '{"refreshToken":"eyJhbGciOiJIUzI1NiJ9..."}'
+  -d '{"refreshToken":"<signed JWT>"}'
 ```
 
 A client normally does this on any `401`: refresh once, retry the original

@@ -12,11 +12,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record AuthenticationResponseDto(
 
         @Schema(description = "Send as 'Authorization: Bearer <token>'. Lives 15 minutes.",
-                example = "eyJhbGciOiJIUzI1NiJ9...")
+                example = "<signed JWT>")
         String accessToken,
 
         @Schema(description = "Only accepted by /api/v1/auth/refresh. Lives 30 days.",
-                example = "eyJhbGciOiJIUzI1NiJ9...")
+                example = "<signed JWT>")
         String refreshToken,
 
         @Schema(description = "Name the tokens were issued for", example = "admin")

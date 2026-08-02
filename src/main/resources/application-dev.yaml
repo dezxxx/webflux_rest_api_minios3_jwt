@@ -1,0 +1,14 @@
+# Local development only. Activated with SPRING_PROFILES_ACTIVE=dev.
+#
+# Switching this profile on is what allows the development credentials in
+# application.yaml to be used at all: InsecureDefaultsGuard refuses to start
+# without it. Never enable this profile anywhere real.
+app:
+  jwt:
+    # Long enough that a token pasted into Swagger UI survives a working session.
+    # The strict 15m default stays in application.yaml, where deployments read it.
+    access-token-ttl: 8h
+
+logging:
+  level:
+    com.dezxxx.minios3: DEBUG
