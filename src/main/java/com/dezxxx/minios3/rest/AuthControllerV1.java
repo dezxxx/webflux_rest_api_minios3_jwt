@@ -20,7 +20,7 @@ import reactor.core.publisher.Mono;
 
 
 @RestController
-@RequestMapping ("/api/v1/auth")
+@RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 @Tag(name = "Authentication",
      description = "Open endpoints: register, log in, renew the token pair. No token required.")
@@ -43,7 +43,7 @@ public class AuthControllerV1 {
                     content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     @PostMapping("/login")
-    public Mono<AuthenticationResponseDto> login (@Valid @RequestBody
+    public Mono<AuthenticationResponseDto> login(@Valid @RequestBody
         AuthenticationRequestDto request) {
         return authService.login(request);
     }
@@ -57,10 +57,9 @@ public class AuthControllerV1 {
             @ApiResponse(responseCode = "409", description = "USERNAME_TAKEN",
                     content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     })
-    @PostMapping ("/register")
+    @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-
-    public Mono<AuthenticationResponseDto> register (@Valid @RequestBody
+    public Mono<AuthenticationResponseDto> register(@Valid @RequestBody
         RegistrationRequestDto request) {
         return authService.register(request);
     }
@@ -80,7 +79,7 @@ public class AuthControllerV1 {
                     content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     @PostMapping("/refresh")
-    public Mono<AuthenticationResponseDto> refresh (@Valid @RequestBody
+    public Mono<AuthenticationResponseDto> refresh(@Valid @RequestBody
         RefreshRequestDto request) {
         return authService.refresh(request);
     }
@@ -97,7 +96,7 @@ public class AuthControllerV1 {
     @ApiResponse(responseCode = "204", description = "Always")
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public Mono<Void> logout () {
+    public Mono<Void> logout() {
         return Mono.empty();
     }
 }

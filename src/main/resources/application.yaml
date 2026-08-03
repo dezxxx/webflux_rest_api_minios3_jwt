@@ -43,6 +43,15 @@ app:
     # MinIO addresses buckets by path, not by virtual host as real S3 does
     path-style-access: true
 
+# Off by default: the generated document lists every path, every field and the role
+# each endpoint needs. The dev profile turns it back on, where SecurityConfig also
+# makes the paths public.
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:false}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}
+
 logging:
   level:
     org.springframework.r2dbc: DEBUG

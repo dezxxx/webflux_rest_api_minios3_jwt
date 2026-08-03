@@ -9,6 +9,13 @@ app:
     # The strict 15m default stays in application.yaml, where deployments read it.
     access-token-ttl: 8h
 
+# Swagger is switched off in application.yaml and comes back only here.
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
 logging:
   level:
     com.dezxxx.minios3: DEBUG

@@ -24,7 +24,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @RestController
-@RequestMapping ("/api/v1/users")
+@RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Users",
@@ -43,7 +43,7 @@ public class UserControllerV1 {
             @ApiResponse(responseCode = "401", description = "No token, or the token is not an access token",
                     content = @Content)
     })
-    @GetMapping( "/me")
+    @GetMapping("/me")
     public Mono<UserResponseDto> getCurrentUser(@AuthenticationPrincipal String username) {
         return userService.getByUsername(username);
     }
@@ -57,7 +57,7 @@ public class UserControllerV1 {
                     content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     @GetMapping
-    @PreAuthorize ("hasAnyRole ('ADMIN', 'MODERATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MODERATOR')")
     public Flux<UserResponseDto> getAllUsers() {
         return userService.getAll();
     }
@@ -74,8 +74,8 @@ public class UserControllerV1 {
                     content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     @GetMapping("/{userId}")
-    @PreAuthorize("hasAnyRole ('ADMIN', 'MODERATOR') ")
-    public Mono<UserResponseDto> getUserById (
+    @PreAuthorize("hasAnyRole('ADMIN', 'MODERATOR')")
+    public Mono<UserResponseDto> getUserById(
             @Parameter(description = "Primary key of the account", example = "1")
             @PathVariable Integer userId) {
         return  userService.getById(userId);
@@ -93,9 +93,9 @@ public class UserControllerV1 {
                     content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     @PostMapping
-    @PreAuthorize(" hasRole ('ADMIN') ")
+    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
-    public Mono<UserResponseDto> createUser (@Valid @RequestBody UserCreateRequestDto requestDto){
+    public Mono<UserResponseDto> createUser(@Valid @RequestBody UserCreateRequestDto requestDto) {
         return userService.create(requestDto);
     }
 
@@ -115,8 +115,8 @@ public class UserControllerV1 {
                     content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     @PutMapping("/{userId}")
-    @PreAuthorize(" hasRole('ADMIN') ")
-    public Mono<UserResponseDto> updateUser (
+    @PreAuthorize("hasRole('ADMIN')")
+    public Mono<UserResponseDto> updateUser(
             @Parameter(description = "Primary key of the account to replace", example = "2")
             @PathVariable Integer userId,
             @Valid @RequestBody UserUpdateRequestDto requestDto,
@@ -138,10 +138,10 @@ public class UserControllerV1 {
             @ApiResponse(responseCode = "404", description = "USER_NOT_FOUND",
                     content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     })
-    @DeleteMapping ("/{userId}")
+    @DeleteMapping("/{userId}")
     @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public Mono<Void> deleteUser (
+    public Mono<Void> deleteUser(
             @Parameter(description = "Primary key of the account to delete", example = "3")
             @PathVariable Integer userId,
             @AuthenticationPrincipal String currentUsername) {
