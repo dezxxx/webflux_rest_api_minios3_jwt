@@ -65,7 +65,11 @@ migration seeds the first administrator — see [Authentication](#authentication
 |---|---|
 | Swagger UI | http://localhost:8080/swagger-ui/index.html |
 | OpenAPI spec | http://localhost:8080/v3/api-docs |
+| Front end demo | http://localhost:8080/ |
 | MinIO console | http://localhost:9001 (`minioadmin` / `minioadmin`) |
+
+The first three exist **only under the `dev` profile** — see
+[Public endpoints](#public-endpoints).
 
 ## Configuration
 
@@ -115,6 +119,40 @@ wherever the migrations do. Making it dev-only would leave a fresh deployment
 with no administrator and no way to create one, since registration only ever
 grants `USER`. Bootstrapping the first administrator from the environment is the
 proper fix and is not implemented.
+
+### Public endpoints
+
+`SecurityConfig` keeps a whitelist: anything not on it falls into
+`anyExchange().authenticated()` and needs a token.
+
+```
+/api/v1/auth/login      always
+/api/v1/auth/register   always
+/api/v1/auth/refresh    always
+/api/v1/auth/logout     always
+
+/v3/api-docs/**         dev profile only
+/swagger-ui/**          dev profile only
+/  and  /index.html     dev profile only
+```
+
+The four authentication paths are listed one by one rather than matched with
+`/api/v1/auth/**`. A wildcard would also publish whatever is added to
+`AuthControllerV1` later — a password reset written next month would be reachable
+without a token, and nobody would have had to touch this file for that to happen.
+Probing for a path that does not exist now answers `401` rather than `404`, so
+guessing reveals nothing either.
+
+The OpenAPI document is behind two locks: the paths above are not public outside
+`dev`, and `springdoc.api-docs.enabled` / `springdoc.swagger-ui.enabled` default
+to `false`, so the document is not generated at all. It lists every path, every
+field and the role each endpoint requires — precisely the reconnaissance an
+attacker would otherwise have to guess at.
+
+`/index.html` is a small static page that drives this API the way a front end
+would: register, log in, hold the token, send it as a `Bearer` header, and show
+each request beside its response. It exists to make the front-end/back-end
+boundary visible and is not part of the deliverable.
 
 ## Domain
 
@@ -319,6 +357,15 @@ Form login and HTTP Basic are both disabled. They would otherwise answer with
 their own login prompt, and an unauthenticated call would get a `302` redirect
 instead of the `401` a REST client expects.
 
+Disabling them is not quite enough on its own. Spring's default entry point still
+answered `401` with an empty body and a `WWW-Authenticate: Basic` header, which
+made browsers show a credentials prompt for a mechanism this application does not
+implement — typing the correct password into it returned `401` all the same,
+because nothing reads a `Basic` header here. `JwtAuthenticationEntryPoint`
+replaces it: no `WWW-Authenticate`, and the same `ErrorResponseDto` body as every
+other failure. It writes that body by hand, since an entry point runs before a
+controller is chosen and `GlobalExceptionHandler` never sees it.
+
 ### Error format
 
 Every failure returns the same shape, with a machine-readable `code` that stays
@@ -365,6 +412,9 @@ Done:
   administrator demoting, blocking or deleting their own account
 - Versioned paths and controllers (`/api/v1`, `AuthControllerV1`)
 - Swagger: `Authorize` button, tags, per-operation descriptions and examples
+- Named public endpoints, Swagger and the demo page restricted to `dev`
+- `JwtAuthenticationEntryPoint`: `401` carries the standard error body
+- Static demo page showing how a front end drives the API
 
 Next:
 

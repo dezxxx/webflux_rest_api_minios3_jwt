@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MinIO S3 API — front end demo</title>
+<style>
+  :root {
+    --bg: #14161a;
+    --panel: #1c1f26;
+    --line: #2a2f3a;
+    --text: #d8dee9;
+    --dim: #8b95a7;
+    --accent: #6ea8fe;
+    --ok: #7ee2a8;
+    --warn: #f0c674;
+    --err: #f08a8a;
+    --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 24px 20px 60px; }
+  h1 { font-size: 20px; margin: 0 0 4px; font-weight: 600; }
+  .sub { color: var(--dim); font-size: 13px; margin-bottom: 20px; }
+
+  .flow {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 20px; font-family: var(--mono); font-size: 12px;
+  }
+  .flow b { color: var(--accent); font-weight: 600; }
+  .flow span { color: var(--dim); }
+
+  .cols { display: grid; grid-template-columns: 380px 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 14px 16px; margin-bottom: 14px;
+  }
+  .card h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--dim); margin: 0 0 12px; font-weight: 600;
+  }
+  label { display: block; font-size: 12px; color: var(--dim); margin: 8px 0 3px; }
+  input {
+    width: 100%; padding: 7px 9px; background: #0f1116; color: var(--text);
+    border: 1px solid var(--line); border-radius: 5px; font-family: var(--mono); font-size: 13px;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  button {
+    padding: 7px 12px; margin: 10px 6px 0 0; cursor: pointer;
+    background: #262b35; color: var(--text); border: 1px solid var(--line);
+    border-radius: 5px; font-family: var(--mono); font-size: 12px;
+  }
+  button:hover { border-color: var(--accent); color: #fff; }
+  button.primary { background: #24406e; border-color: #35538a; }
+
+  .state { font-family: var(--mono); font-size: 12px; }
+  .state div { padding: 3px 0; border-bottom: 1px dashed var(--line); }
+  .state div:last-child { border: none; }
+  .state .k { color: var(--dim); display: inline-block; min-width: 74px; }
+  .none { color: var(--err); }
+  .have { color: var(--ok); }
+
+  #log { max-height: 78vh; overflow-y: auto; font-family: var(--mono); font-size: 12px; }
+  .entry { border-left: 2px solid var(--line); padding: 0 0 0 12px; margin-bottom: 16px; }
+  .entry.req { border-color: var(--accent); }
+  .entry.res-ok { border-color: var(--ok); }
+  .entry.res-err { border-color: var(--err); }
+  .head { font-weight: 600; margin-bottom: 4px; }
+  .req .head { color: var(--accent); }
+  .res-ok .head { color: var(--ok); }
+  .res-err .head { color: var(--err); }
+  .hdr { color: var(--dim); }
+  .hdr b { color: var(--warn); font-weight: 400; }
+  pre { margin: 4px 0 0; white-space: pre-wrap; word-break: break-all; color: var(--text); }
+  .note { color: var(--dim); font-style: italic; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>MinIO S3 API — front end demo</h1>
+  <div class="sub">
+    A stand-in for the real front end. Every button below sends the same HTTP request
+    a React app would send. Dev profile only.
+  </div>
+
+  <div class="flow">
+    <b>this page</b> <span>— fetch() —&gt;</span>
+    <b>localhost:8080</b> <span>— JwtAuthenticationFilter —&gt;</span>
+    <b>@PreAuthorize</b> <span>— service —&gt;</span>
+    <b>MySQL</b>
+  </div>
+
+  <div class="cols">
+    <div>
+
+      <div class="card">
+        <h2>1 — Register</h2>
+        <label>username</label>
+        <input id="regUser" value="demo_user" autocomplete="off">
+        <label>password</label>
+        <input id="regPass" value="secret123" autocomplete="off">
+        <button class="primary" id="btnRegister">POST /auth/register</button>
+        <div class="note">Always creates a plain USER — the role is not read from the body.</div>
+      </div>
+
+      <div class="card">
+        <h2>2 — Log in</h2>
+        <label>username</label>
+        <input id="logUser" value="admin" autocomplete="off">
+        <label>password</label>
+        <input id="logPass" value="admin" autocomplete="off">
+        <button class="primary" id="btnLogin">POST /auth/login</button>
+        <div class="note">The role comes from the database row, never from the request.</div>
+      </div>
+
+      <div class="card">
+        <h2>Token held by this page</h2>
+        <div class="state" id="tokenState"></div>
+        <button id="btnRefresh">POST /auth/refresh</button>
+        <button id="btnLogout">Log out</button>
+        <div class="note">Logging out only clears localStorage — the server stores nothing.</div>
+      </div>
+
+      <div class="card">
+        <h2>3 — Protected resources</h2>
+        <button id="btnMe">GET /users/me</button>
+        <button id="btnUsers">GET /users</button>
+        <button id="btnAnonymous">GET /users without token</button>
+        <div class="note">The second one needs ADMIN or MODERATOR. Log in as a USER to see 403.</div>
+      </div>
+
+    </div>
+
+    <div class="card">
+      <h2>HTTP exchange</h2>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "/api/v1";
+
+let accessToken  = localStorage.getItem("accessToken");
+let refreshToken = localStorage.getItem("refreshToken");
+
+/* ---------- logging ---------- */
+
+const logEl = document.getElementById("log");
+
+function esc(s) {
+  return String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
+function pretty(text) {
+  try { return JSON.stringify(JSON.parse(text), null, 2); } catch { return text; }
+}
+
+function shorten(value) {
+  // A JWT is ~300 characters and would bury everything else in the log
+  return value.length > 48 ? value.slice(0, 30) + "…" + value.slice(-8) : value;
+}
+
+function logRequest(method, path, headers, body) {
+  const lines = Object.entries(headers)
+    .map(([k, v]) => `  ${k}: <b>${esc(shorten(v))}</b>`)
+    .join("\n");
+
+  add("req", `→ ${method} ${path}`, lines, body ? JSON.stringify(body, null, 2) : "");
+}
+
+function logResponse(status, statusText, text, note) {
+  const ok = status >= 200 && status < 300;
+  add(ok ? "res-ok" : "res-err", `← ${status} ${statusText}`, "", pretty(text), note);
+}
+
+function add(cls, head, headers, body, note) {
+  const el = document.createElement("div");
+  el.className = "entry " + cls;
+  el.innerHTML =
+      `<div class="head">${esc(head)}</div>`
+    + (headers ? `<pre class="hdr">${headers}</pre>` : "")
+    + (body ? `<pre>${esc(body)}</pre>` : "")
+    + (note ? `<div class="note">${esc(note)}</div>` : "");
+
+  logEl.prepend(el);
+}
+
+/* ---------- the one function that talks to the API ---------- */
+
+async function call(method, path, { body, auth } = {}) {
+  const headers = {};
+  if (body) headers["Content-Type"] = "application/json";
+  // This single line is the whole of "being logged in"
+  if (auth && accessToken) headers["Authorization"] = "Bearer " + accessToken;
+
+  logRequest(method, API + path, headers, body);
+
+  const res  = await fetch(API + path, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const text = await res.text();
+
+  let note = "";
+  if (res.status === 401) note = "No usable token — JwtAuthenticationEntryPoint wrote this body.";
+  if (res.status === 403) note = "Token is valid, the role is not allowed — @PreAuthorize refused.";
+
+  logResponse(res.status, res.statusText, text, note);
+  return { status: res.status, text };
+}
+
+/* ---------- actions ---------- */
+
+async function register() {
+  const { status, text } = await call("POST", "/auth/register", {
+    body: {
+      username: document.getElementById("regUser").value,
+      password: document.getElementById("regPass").value
+    }
+  });
+  if (status === 201) store(text);
+}
+
+async function login() {
+  const { status, text } = await call("POST", "/auth/login", {
+    body: {
+      username: document.getElementById("logUser").value,
+      password: document.getElementById("logPass").value
+    }
+  });
+  if (status === 200) store(text);
+}
+
+async function refresh() {
+  if (!refreshToken) return add("res-err", "no refresh token stored", "", "");
+
+  const { status, text } = await call("POST", "/auth/refresh", { body: { refreshToken } });
+  if (status === 200) store(text);
+}
+
+function loadMe()        { return call("GET", "/users/me", { auth: true }); }
+function loadUsers()     { return call("GET", "/users",    { auth: true }); }
+function loadAnonymous() { return call("GET", "/users"); }
+
+function logout() {
+  accessToken = refreshToken = null;
+  localStorage.clear();
+  add("req", "logged out locally", "", "", "Nothing was sent: the server keeps no session to end.");
+  renderToken();
+}
+
+/* ---------- token state ---------- */
+
+function store(text) {
+  const body = JSON.parse(text);
+  accessToken  = body.accessToken;
+  refreshToken = body.refreshToken;
+  localStorage.setItem("accessToken", accessToken);
+  localStorage.setItem("refreshToken", refreshToken);
+  renderToken();
+}
+
+function claims(token) {
+  // A JWT is three base64url parts; the middle one is the payload, not encrypted
+  const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+  return JSON.parse(atob(payload));
+}
+
+function renderToken() {
+  const el = document.getElementById("tokenState");
+
+  if (!accessToken) {
+    el.innerHTML = `<div><span class="k">access</span><span class="none">none</span></div>`;
+    return;
+  }
+  const c   = claims(accessToken);
+  const exp = new Date(c.exp * 1000);
+  const left = Math.round((exp - Date.now()) / 60000);
+
+  el.innerHTML =
+      `<div><span class="k">access</span><span class="have">${esc(shorten(accessToken))}</span></div>`
+    + `<div><span class="k">sub</span>${esc(c.sub)}</div>`
+    + `<div><span class="k">role</span>${esc(c.role)}</div>`
+    + `<div><span class="k">type</span>${esc(c.type)}</div>`
+    + `<div><span class="k">expires</span>${exp.toLocaleTimeString()} (${left} min)</div>`
+    + `<div><span class="k">refresh</span><span class="${refreshToken ? "have" : "none"}">`
+    + `${refreshToken ? "stored" : "none"}</span></div>`;
+}
+
+/* ---------- wiring ----------
+ * Handlers are attached here rather than with onclick in the markup. An inline
+ * onclick looks its name up through document first, where legacy properties
+ * like `all`, `name` and `open` already exist — a button named all() silently
+ * called document.all and did nothing at all.
+ * Note the missing parentheses: pass the function, do not call it. */
+const handlers = {
+  btnRegister:  register,
+  btnLogin:     login,
+  btnRefresh:   refresh,
+  btnLogout:    logout,
+  btnMe:        loadMe,
+  btnUsers:     loadUsers,
+  btnAnonymous: loadAnonymous
+};
+
+for (const [id, handler] of Object.entries(handlers)) {
+  document.getElementById(id).addEventListener("click", handler);
+}
+
+// A silent button is the worst failure mode: surface script errors in the log
+window.addEventListener("error", e =>
+    add("res-err", "javascript error", "", e.message + "\n" + (e.filename || "") + ":" + e.lineno));
+
+window.addEventListener("unhandledrejection", e =>
+    add("res-err", "request failed", "", String(e.reason)));
+
+renderToken();
+</script>
+</body>
+</html>

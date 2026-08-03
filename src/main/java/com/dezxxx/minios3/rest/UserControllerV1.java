@@ -34,7 +34,7 @@ public class UserControllerV1 {
 
     private final UserService  userService;
 
-    @Operation(summary = "Read your own account",
+    @Operation(summary = "Get current user",
                description = "The caller is identified by the token, so there is no id to pass "
                        + "and nothing to check ownership against. This is how a plain USER "
                        + "reads their own row — /users/{id} is closed to them.")
@@ -48,7 +48,7 @@ public class UserControllerV1 {
         return userService.getByUsername(username);
     }
 
-    @Operation(summary = "List every account",
+    @Operation(summary = "Get all users",
                description = "ADMIN and MODERATOR only — this is the specification's "
                        + "\"MODERATOR may read all users\". Soft-deleted rows are left out.")
     @ApiResponses({
@@ -62,7 +62,7 @@ public class UserControllerV1 {
         return userService.getAll();
     }
 
-    @Operation(summary = "Read one account by id",
+    @Operation(summary = "Get user by id",
                description = "ADMIN and MODERATOR only. A plain USER reads themselves through "
                        + "/users/me instead, which needs no ownership check.")
     @ApiResponses({
@@ -76,12 +76,12 @@ public class UserControllerV1 {
     @GetMapping("/{userId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MODERATOR')")
     public Mono<UserResponseDto> getUserById(
-            @Parameter(description = "Primary key of the account", example = "1")
+            @Parameter(description = "Primary key of the account")
             @PathVariable Integer userId) {
         return  userService.getById(userId);
     }
 
-    @Operation(summary = "Create an account with any role",
+    @Operation(summary = "Create user",
                description = "Unlike /auth/register, the role is taken from the body — safe "
                        + "because only an ADMIN reaches this method. This is the one way a "
                        + "MODERATOR comes to exist. The new account is always ACTIVE.")
@@ -99,7 +99,7 @@ public class UserControllerV1 {
         return userService.create(requestDto);
     }
 
-    @Operation(summary = "Replace an account",
+    @Operation(summary = "Update user",
                description = "A PUT, so all three fields are written at once. This is where a "
                        + "role is changed and where an account is blocked. An administrator "
                        + "may not take ADMIN away from themselves or block themselves — there "
@@ -117,7 +117,7 @@ public class UserControllerV1 {
     @PutMapping("/{userId}")
     @PreAuthorize("hasRole('ADMIN')")
     public Mono<UserResponseDto> updateUser(
-            @Parameter(description = "Primary key of the account to replace", example = "2")
+            @Parameter(description = "Primary key of the account to replace")
             @PathVariable Integer userId,
             @Valid @RequestBody UserUpdateRequestDto requestDto,
             @AuthenticationPrincipal String currentUsername) {
@@ -125,7 +125,7 @@ public class UserControllerV1 {
     }
 
 
-    @Operation(summary = "Delete an account",
+    @Operation(summary = "Delete user",
                description = "Soft delete: the row stays and only deleted_at is set, because the "
                        + "data is kept for later analysis. The account then answers 404 "
                        + "everywhere and can no longer log in. An administrator may not delete "
@@ -142,7 +142,9 @@ public class UserControllerV1 {
     @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public Mono<Void> deleteUser(
-            @Parameter(description = "Primary key of the account to delete", example = "3")
+            // No example on purpose: Postman imports it as the actual path value,
+            // and a pre-filled id turns this into a one-click delete
+            @Parameter(description = "Primary key of the account to delete")
             @PathVariable Integer userId,
             @AuthenticationPrincipal String currentUsername) {
         return userService.delete(userId, currentUsername);

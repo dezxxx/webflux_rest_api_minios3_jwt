@@ -1,6 +1,7 @@
 package com.dezxxx.minios3.configuration;
 
 
+import com.dezxxx.minios3.security.JwtAuthenticationEntryPoint;
 import com.dezxxx.minios3.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -40,10 +41,17 @@ public class SecurityConfig {
             "/swagger-ui/**"
     };
 
+    /** Dev only as well: a demo page showing how a front end drives this API. */
+    private static final String[] DEV_PAGE_ENDPOINTS = {
+            "/",
+            "/index.html"
+    };
+
     private static final String DEV_PROFILE = "dev";
 
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final Environment environment;
 
 
@@ -56,6 +64,8 @@ public class SecurityConfig {
         // Both answer with their own login prompt instead of a plain 401
                         .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                         .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
+                        .exceptionHandling(spec -> spec
+                                .authenticationEntryPoint(jwtAuthenticationEntryPoint))
                         .authorizeExchange(exchange -> exchange
                                 .pathMatchers(publicEndpoints()).permitAll()
                                 .anyExchange().authenticated())
@@ -70,7 +80,8 @@ public class SecurityConfig {
         if (!environment.matchesProfiles(DEV_PROFILE)) {
             return PUBLIC_ENDPOINTS;
         }
-        return Stream.concat(Arrays.stream(PUBLIC_ENDPOINTS), Arrays.stream(SWAGGER_ENDPOINTS))
+        return Stream.of(PUBLIC_ENDPOINTS, SWAGGER_ENDPOINTS, DEV_PAGE_ENDPOINTS)
+                .flatMap(Arrays::stream)
                 .toArray(String[]::new);
     }
 

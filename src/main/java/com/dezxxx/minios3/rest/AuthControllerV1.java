@@ -28,7 +28,7 @@ public class AuthControllerV1 {
 
     private final AuthService authService;
 
-    @Operation(summary = "Log in and receive a token pair",
+    @Operation(summary = "User login",
                description = "Checks the password against the stored bcrypt hash. "
                        + "A blocked account is refused even with the right password.")
     @ApiResponses({
@@ -48,7 +48,7 @@ public class AuthControllerV1 {
         return authService.login(request);
     }
 
-    @Operation(summary = "Register and log in at once",
+    @Operation(summary = "User registration",
                description = "The role is never read from the body — a new account is always "
                        + "an active USER. Tokens come back immediately, so no second call "
                        + "to /login is needed.")
@@ -64,7 +64,7 @@ public class AuthControllerV1 {
         return authService.register(request);
     }
 
-    @Operation(summary = "Trade a refresh token for a fresh pair",
+    @Operation(summary = "Refresh tokens",
                description = "The only endpoint that reads the user row after login. That is why "
                        + "a changed role or a block takes effect here within one access-token "
                        + "lifetime, instead of waiting for the old token to expire.")
@@ -89,7 +89,7 @@ public class AuthControllerV1 {
      * stores none, so logging out is the client discarding both tokens.
      * The endpoint exists to document that contract, not to change server state.
      */
-    @Operation(summary = "Log out — client-side only",
+    @Operation(summary = "User logout",
                description = "Does nothing on the server and always returns 204. A signed token "
                        + "is valid until it expires and nothing is stored that could mark one as "
                        + "dead, so logging out means the client discarding both tokens.")
