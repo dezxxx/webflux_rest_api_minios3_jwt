@@ -26,6 +26,11 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, ErrorCode.USER_NOT_FOUND, e.getMessage());
     }
 
+    @ExceptionHandler (FileNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorResponseDto handleFileNotFoundException (FileNotFoundException e) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.FILE_NOT_FOUND, e.getMessage());
+    }
 
     @ExceptionHandler(InvalidCredentialsException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)

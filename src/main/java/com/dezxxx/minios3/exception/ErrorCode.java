@@ -11,5 +11,6 @@ public enum ErrorCode {
     INTERNAL_ERROR,
     EXPIRED_TOKEN,
     INVALID_TOKEN,
-    USER_NOT_FOUND
+    USER_NOT_FOUND,
+    FILE_NOT_FOUND,
 }

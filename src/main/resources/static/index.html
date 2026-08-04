@@ -96,7 +96,7 @@
     <b>this page</b> <span>— fetch() —&gt;</span>
     <b>localhost:8080</b> <span>— JwtAuthenticationFilter —&gt;</span>
     <b>@PreAuthorize</b> <span>— service —&gt;</span>
-    <b>MySQL</b>
+    <b>MySQL</b> <span>(row)</span> <span>+</span> <b>MinIO</b> <span>(bytes)</span>
   </div>
 
   <div class="cols">
@@ -136,6 +136,22 @@
         <button id="btnUsers">GET /users</button>
         <button id="btnAnonymous">GET /users without token</button>
         <div class="note">The second one needs ADMIN or MODERATOR. Log in as a USER to see 403.</div>
+      </div>
+
+      <div class="card">
+        <h2>4 — Files</h2>
+        <label>file to upload</label>
+        <input id="fileInput" type="file">
+        <button class="primary" id="btnUpload">POST /files</button>
+        <button id="btnFiles">GET /files</button>
+        <label>file id</label>
+        <input id="fileId" value="1" autocomplete="off">
+        <button id="btnFile">GET /files/{id}</button>
+        <button id="btnFileDelete">DELETE /files/{id}</button>
+        <div class="note">
+          A USER sees only their own files, a MODERATOR sees every one. Somebody
+          else's file answers 404 rather than 403, so no id can be confirmed to exist.
+        </div>
       </div>
 
     </div>
@@ -253,6 +269,38 @@ function loadMe()        { return call("GET", "/users/me", { auth: true }); }
 function loadUsers()     { return call("GET", "/users",    { auth: true }); }
 function loadAnonymous() { return call("GET", "/users"); }
 
+/* ---------- files ----------
+ * Uploading cannot go through call(): there is no JSON body here. The file travels
+ * as multipart/form-data, which is a different shape of request entirely. */
+
+async function uploadFile() {
+  const file = document.getElementById("fileInput").files[0];
+  if (!file) return add("res-err", "no file chosen", "", "");
+
+  const form = new FormData();
+  form.append("file", file);          // the name the controller reads the part by
+
+  const headers = {};
+  if (accessToken) headers["Authorization"] = "Bearer " + accessToken;
+  // Content-Type is deliberately absent: fetch has to write it itself, because only
+  // it knows the random boundary string separating the parts. Set it by hand and the
+  // server gets a boundary that does not match the body.
+
+  logRequest("POST", API + "/files", headers, { file: file.name, size: file.size });
+
+  const res  = await fetch(API + "/files", { method: "POST", headers, body: form });
+  const text = await res.text();
+
+  logResponse(res.status, res.statusText, text, res.status === 201
+      ? "Bytes went to MinIO, the row to MySQL, and an event was recorded — in that order."
+      : "");
+}
+
+function fileId()     { return encodeURIComponent(document.getElementById("fileId").value); }
+function loadFiles()  { return call("GET",    "/files",             { auth: true }); }
+function loadFile()   { return call("GET",    "/files/" + fileId(), { auth: true }); }
+function deleteFile() { return call("DELETE", "/files/" + fileId(), { auth: true }); }
+
 function logout() {
   accessToken = refreshToken = null;
   localStorage.clear();
@@ -309,9 +357,13 @@ const handlers = {
   btnLogin:     login,
   btnRefresh:   refresh,
   btnLogout:    logout,
-  btnMe:        loadMe,
-  btnUsers:     loadUsers,
-  btnAnonymous: loadAnonymous
+  btnMe:         loadMe,
+  btnUsers:      loadUsers,
+  btnAnonymous:  loadAnonymous,
+  btnUpload:     uploadFile,
+  btnFiles:      loadFiles,
+  btnFile:       loadFile,
+  btnFileDelete: deleteFile
 };
 
 for (const [id, handler] of Object.entries(handlers)) {

@@ -163,6 +163,46 @@ boundary visible and is not part of the deliverable.
 MySQL stores metadata and permissions; MinIO stores the bytes. `files.location`
 holds the object key, never the file itself.
 
+### How a file is stored
+
+An upload arrives as `multipart/form-data`, so there is no request DTO for it —
+the only thing the client sends is the file, and its name travels inside the part
+rather than in a JSON body.
+
+```
+FileControllerV1 → FileService → S3Storage → MinIO      bytes
+                              → FileRepository → MySQL  row
+                              → EventService   → MySQL  CREATED
+```
+
+Bytes first, row second. A break in between leaves an unreferenced object in the
+bucket: invisible, harmless, cheap to sweep up. The opposite order would leave a
+row pointing at nothing, and that one is visible to the client as a broken file.
+
+`location` is the **object key**, a fresh UUID with the original extension —
+never a URL. A URL would nail the storage host into every row, so moving to
+another MinIO or to a real S3 would invalidate the whole table; the host is
+configuration and is read from `S3_ENDPOINT` when needed. The UUID is what keeps
+two people uploading `passport.pdf` from overwriting each other, since `putObject`
+replaces a duplicate key without complaining. The name the user chose is kept
+separately in `files.name`.
+
+The whole file is held in memory for the length of the request. That is the price
+of `putObject`, which needs the content length before it accepts the first byte;
+streaming it instead means either a temporary file or a multipart upload, neither
+of which is worth it at this size.
+
+`FileResponseDto` reports the owner as a **name**, not an id, which is why the
+three read queries in `FileRepository` are hand-written joins onto `users` rather
+than derived from method names. A `MODERATOR` listing every file gets something
+readable in one request instead of an id to resolve afterwards; the cost is that
+`deleted_at IS NULL` is now ours to remember in each of those queries.
+
+Events are written by `EventService` on create, update and delete. Their `user_id`
+is whoever performed the action, not whoever owns the file — for an upload the two
+are the same, and when a moderator edits somebody else's file the moderator is the
+answer worth keeping.
+
 ### Deviations from the specification DDL
 
 Three columns were added because the functional requirements cannot be met
@@ -244,18 +284,15 @@ a client.
 
 ### Deletion
 
-`DELETE` is a soft delete: it sets `deleted_at` and keeps the row, because the
-data is retained for later analysis. Every read filters on `deleted_at IS NULL`.
+`DELETE` is a soft delete everywhere: it sets `deleted_at`, keeps the row, and
+every read filters on `deleted_at IS NULL`. Nothing is ever removed physically —
+the data is retained for later analysis, and a history with holes in it cannot be
+replayed.
 
-```
-DELETE /api/v1/files/{id}              soft — ADMIN, MODERATOR
-DELETE /api/v1/files/{id}?hard=true    hard — ADMIN only, MODERATOR gets 403
-```
-
-Hard delete physically removes the row and the object in MinIO. Because the
-foreign keys are `RESTRICT`, the service walks the chain bottom-up — events, then
-files, then the user — and removes the S3 objects before the rows that hold their
-keys.
+For a file that means the object stays in the bucket too. Only the way to reach
+it is withdrawn: the row answers `404`, so no request can name the key any more.
+An orphan object costs storage and nothing else, while discarding it would make
+the retained row point at a file that no longer exists.
 
 ### Roles vs ownership
 
@@ -389,6 +426,8 @@ stable even when the human message is reworded:
 | 401 | `INVALID_TOKEN` | malformed, forged, or the wrong token type |
 | 403 | `USER_BLOCKED` | credentials fine, account not `ACTIVE` |
 | 403 | `ACCESS_DENIED` | role does not allow the call |
+| 404 | `USER_NOT_FOUND` | no such id, or the account was deleted |
+| 404 | `FILE_NOT_FOUND` | no such id, deleted, **or owned by somebody else** |
 | 404 | `REQUEST_FAILED` | status chosen by Spring itself |
 | 409 | `USERNAME_TAKEN` | duplicate caught before the insert |
 | 409 | `RESOURCE_CONFLICT` | duplicate caught by the unique constraint |
@@ -415,10 +454,17 @@ Done:
 - Named public endpoints, Swagger and the demo page restricted to `dev`
 - `JwtAuthenticationEntryPoint`: `401` carries the standard error body
 - Static demo page showing how a front end drives the API
+- `S3AsyncClient` wired to MinIO, and `S3Storage` as the only class that touches
+  the AWS SDK
+- `FileService`: upload, ownership-aware reads, update, soft delete, and an event
+  recorded on every change
+- `EventService` writing the audit trail the specification asks for
 
 Next:
 
-- Files CRUD, S3 upload/download and event recording
+- `FileControllerV1` — the endpoints themselves
 - Events CRUD
+- Downloading the bytes back (the specification's `GET /files/{id}` returns JSON
+  only, so this is an addition rather than a requirement)
 - Unit tests for the service and mapper layers
 - Integration tests, application Dockerfile

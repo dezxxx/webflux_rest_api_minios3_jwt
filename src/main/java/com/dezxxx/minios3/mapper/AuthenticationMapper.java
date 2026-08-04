@@ -13,7 +13,15 @@ public final class AuthenticationMapper {
     private AuthenticationMapper() {
     }
 
-    public static AuthenticationResponseDto toResponse(User user, String accessToken, String refreshToken) {
-        return new AuthenticationResponseDto(accessToken, refreshToken, user.getUsername(), user.getRole());
+    public static AuthenticationResponseDto toResponse(
+            User user,
+            String accessToken,
+            String refreshToken)
+    {
+        return new AuthenticationResponseDto(
+                accessToken,
+                refreshToken,
+                user.getUsername(),
+                user.getRole());
     }
 }
