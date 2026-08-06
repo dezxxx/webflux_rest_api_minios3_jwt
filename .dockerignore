@@ -1,0 +1,10 @@
+# Everything here would only be copied into the build context and thrown away, and a
+# stale build/ directory could even end up in the image.
+build/
+.gradle/
+.idea/
+*.iml
+.git/
+.github/
+docs/
+*.md

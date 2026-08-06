@@ -71,6 +71,36 @@ migration seeds the first administrator — see [Authentication](#authentication
 The first three exist **only under the `dev` profile** — see
 [Public endpoints](#public-endpoints).
 
+### Running everything in Docker
+
+The application has its own image and can join the same network as MySQL and
+MinIO, with no JDK on the host at all:
+
+```bash
+docker compose --profile app up --build
+```
+
+The `app` profile is why the plain `docker compose up` above still brings up the
+infrastructure alone, which is what you want while running the application from
+the IDE. Inside the network the containers address each other by service name,
+so `DB_HOST` becomes `mysql` and the S3 endpoint `http://minio:9000` — the
+defaults in `application.yaml` point at `localhost` and only suit the host.
+
+The `Dockerfile` is a two-stage build: a JDK image produces the jar, and only
+the jar is copied into a JRE image, which then runs as a non-root user.
+
+### Tests
+
+```bash
+gradlew test              # 44 unit tests, all mocks, no Docker, seconds
+gradlew integrationTest   # 31 tests against real MySQL and MinIO containers
+```
+
+The two prongs are separate source sets: `src/test` mocks every collaborator, so
+it runs on every save; `src/integrationTest` starts containers through
+Testcontainers and drives real HTTP against all four controllers. See
+[Testing](#testing).
+
 ## Configuration
 
 Every setting has a local-development default and is overridable through the
@@ -437,6 +467,37 @@ stable even when the human message is reworded:
 password. Saying which one failed would let an attacker enumerate valid
 usernames.
 
+## Testing
+
+Two prongs, deliberately separate source sets rather than one directory split by
+file name — the IDE picks a test task by directory, and sharing one made every
+unit test look like a candidate for the container suite.
+
+| | `src/test` → `gradlew test` | `src/integrationTest` → `gradlew integrationTest` |
+|---|---|---|
+| Count | 44 | 31 |
+| Collaborators | Mockito mocks | real MySQL and MinIO in Docker |
+| Speed | seconds | ~90 s, most of it starting containers |
+| Answers | did the service decide correctly | does the whole path work |
+
+The unit tests are weighted towards decisions worth defending: the guards that
+stop an administrator locking themselves out, that a raw password never reaches
+the database, that ownership violations answer `404` rather than `403`, and that
+`JwtTokenProvider` rejects a forged signature, a tampered payload, an expired
+token and an access token offered where a refresh token belongs.
+
+The integration tests drive real HTTP against a random port. They are the only
+place the hand-written joins run at all — Spring Data R2DBC has no relations, so
+those queries are plain SQL that nothing else checks — and the only place the
+bytes actually travel to MinIO.
+
+`AbstractIntegrationTest` starts the containers itself, in a static block rather
+than with `@Container`: that annotation stops a static container once its own
+class finishes, which leaves every later suite talking to a dead port. MySQL is
+wired in by `@ServiceConnection`; the S3 settings and the Flyway URL are passed
+by hand, because they are either our own properties or, in Flyway's case,
+already pinned in `application.yaml`, and an explicit property always wins.
+
 ## Project status
 
 Done:
@@ -463,10 +524,15 @@ Done:
   update and delete closed to a plain `USER` by role
 - `EventControllerV1`: the audit trail as an endpoint, with the same
   own-versus-all split as files
+- 44 unit tests over the four services, `JwtTokenProvider` and the mappers
+- 31 integration tests through real HTTP, MySQL and MinIO, covering all four
+  controllers — see [Testing](#testing)
+- `Dockerfile` and an `app` profile in Compose, so the whole stack runs in Docker
 
 Next:
 
 - Downloading the bytes back (the specification's `GET /files/{id}` returns JSON
   only, so this is an addition rather than a requirement)
-- Unit tests for the service and mapper layers
-- Integration tests, application Dockerfile
+- `findCaller` and the role checks are duplicated between `FileService` and
+  `EventService` and want extracting
+- `InsecureDefaultsGuard` has no test of its own

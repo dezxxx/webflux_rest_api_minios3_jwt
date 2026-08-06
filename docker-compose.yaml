@@ -48,6 +48,31 @@ services:
       echo 'bucket ready'
       "
 
+  # The application itself. Kept in a profile so `docker compose up` still brings up just
+  # the infrastructure for running the app from the IDE, which is the usual case.
+  # Start everything with: docker compose --profile app up --build
+  app:
+    build: .
+    container_name: minios3-app
+    profiles: ["app"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      # Service names, not localhost: inside the network each container is its own host
+      DB_HOST: mysql
+      DB_PORT: 3306
+      S3_ENDPOINT: http://minio:9000
+      # Development credentials are only allowed to stay in place under this profile;
+      # InsecureDefaultsGuard refuses to start without it. Never set it anywhere real.
+      SPRING_PROFILES_ACTIVE: dev
+    ports:
+      - "8080:8080"
+
 volumes:
   mysql-data:
   minio-data:
