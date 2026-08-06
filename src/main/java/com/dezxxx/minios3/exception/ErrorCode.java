@@ -13,4 +13,5 @@ public enum ErrorCode {
     INVALID_TOKEN,
     USER_NOT_FOUND,
     FILE_NOT_FOUND,
+    EVENT_NOT_FOUND,
 }

@@ -459,11 +459,13 @@ Done:
 - `FileService`: upload, ownership-aware reads, update, soft delete, and an event
   recorded on every change
 - `EventService` writing the audit trail the specification asks for
+- `FileControllerV1`: upload as `multipart/form-data`, ownership-aware reads,
+  update and delete closed to a plain `USER` by role
+- `EventControllerV1`: the audit trail as an endpoint, with the same
+  own-versus-all split as files
 
 Next:
 
-- `FileControllerV1` — the endpoints themselves
-- Events CRUD
 - Downloading the bytes back (the specification's `GET /files/{id}` returns JSON
   only, so this is an addition rather than a requirement)
 - Unit tests for the service and mapper layers

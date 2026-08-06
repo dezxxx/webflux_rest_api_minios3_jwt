@@ -48,11 +48,11 @@
     color: var(--dim); margin: 0 0 12px; font-weight: 600;
   }
   label { display: block; font-size: 12px; color: var(--dim); margin: 8px 0 3px; }
-  input {
+  input, select {
     width: 100%; padding: 7px 9px; background: #0f1116; color: var(--text);
     border: 1px solid var(--line); border-radius: 5px; font-family: var(--mono); font-size: 13px;
   }
-  input:focus { outline: none; border-color: var(--accent); }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
   button {
     padding: 7px 12px; margin: 10px 6px 0 0; cursor: pointer;
     background: #262b35; color: var(--text); border: 1px solid var(--line);
@@ -148,9 +148,39 @@
         <input id="fileId" value="1" autocomplete="off">
         <button id="btnFile">GET /files/{id}</button>
         <button id="btnFileDelete">DELETE /files/{id}</button>
+        <label>new name and status (PUT replaces both at once)</label>
+        <input id="fileName" value="renamed.pdf" autocomplete="off">
+        <select id="fileStatus">
+          <option>ACTIVE</option>
+          <option>ARCHIVED</option>
+        </select>
+        <button id="btnFileUpdate">PUT /files/{id}</button>
         <div class="note">
           A USER sees only their own files, a MODERATOR sees every one. Somebody
           else's file answers 404 rather than 403, so no id can be confirmed to exist.
+          PUT and DELETE are closed to a plain USER by role, so those answer 403.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>5 — Events</h2>
+        <button id="btnEvents">GET /events</button>
+        <label>event id</label>
+        <input id="eventId" value="1" autocomplete="off">
+        <button id="btnEvent">GET /events/{id}</button>
+        <button id="btnEventDelete">DELETE /events/{id}</button>
+        <label>status (POST uses the file id above, PUT the event id)</label>
+        <select id="eventStatus">
+          <option>CREATED</option>
+          <option>UPDATED</option>
+          <option>DELETED</option>
+        </select>
+        <button id="btnEventCreate">POST /events</button>
+        <button id="btnEventUpdate">PUT /events/{id}</button>
+        <div class="note">
+          Nothing here needs to be pressed for the trail to fill up — uploading a file in
+          card 4 already wrote a CREATED entry. POST is ADMIN only and exists because the
+          specification asks for full CRUD.
         </div>
       </div>
 
@@ -301,6 +331,39 @@ function loadFiles()  { return call("GET",    "/files",             { auth: true
 function loadFile()   { return call("GET",    "/files/" + fileId(), { auth: true }); }
 function deleteFile() { return call("DELETE", "/files/" + fileId(), { auth: true }); }
 
+// A PUT, so both fields go every time: leaving one out would blank it, not keep it.
+function updateFile() {
+  return call("PUT", "/files/" + fileId(), {
+    auth: true,
+    body: {
+      name:   document.getElementById("fileName").value,
+      status: document.getElementById("fileStatus").value
+    }
+  });
+}
+
+/* ---------- events ---------- */
+
+function eventId()      { return encodeURIComponent(document.getElementById("eventId").value); }
+function eventStatus()  { return document.getElementById("eventStatus").value; }
+
+function loadEvents()   { return call("GET",    "/events",              { auth: true }); }
+function loadEvent()    { return call("GET",    "/events/" + eventId(), { auth: true }); }
+function deleteEvent()  { return call("DELETE", "/events/" + eventId(), { auth: true }); }
+
+// The actor is missing from the body on purpose: the server reads it from the token,
+// so an entry cannot be filed under somebody else's name.
+function createEvent() {
+  return call("POST", "/events", {
+    auth: true,
+    body: { fileId: Number(document.getElementById("fileId").value), status: eventStatus() }
+  });
+}
+
+function updateEvent() {
+  return call("PUT", "/events/" + eventId(), { auth: true, body: { status: eventStatus() } });
+}
+
 function logout() {
   accessToken = refreshToken = null;
   localStorage.clear();
@@ -363,7 +426,14 @@ const handlers = {
   btnUpload:     uploadFile,
   btnFiles:      loadFiles,
   btnFile:       loadFile,
-  btnFileDelete: deleteFile
+  btnFileUpdate: updateFile,
+  btnFileDelete: deleteFile,
+
+  btnEvents:      loadEvents,
+  btnEvent:       loadEvent,
+  btnEventCreate: createEvent,
+  btnEventUpdate: updateEvent,
+  btnEventDelete: deleteEvent
 };
 
 for (const [id, handler] of Object.entries(handlers)) {

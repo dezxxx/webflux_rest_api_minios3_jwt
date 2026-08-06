@@ -32,6 +32,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, ErrorCode.FILE_NOT_FOUND, e.getMessage());
     }
 
+    @ExceptionHandler(EventNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorResponseDto handleEventNotFoundException(EventNotFoundException e) {
+        return build(HttpStatus.NOT_FOUND, ErrorCode.EVENT_NOT_FOUND, e.getMessage());
+    }
+
     @ExceptionHandler(InvalidCredentialsException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ErrorResponseDto handleInvalidCredentials(InvalidCredentialsException e) {
