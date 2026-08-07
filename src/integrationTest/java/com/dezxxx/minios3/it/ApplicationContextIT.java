@@ -2,8 +2,8 @@ package com.dezxxx.minios3.it;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
+
+
 
 /**
  * The cheapest integration test there is: it only proves the bean graph assembles.
