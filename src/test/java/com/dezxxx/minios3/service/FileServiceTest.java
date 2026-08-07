@@ -76,7 +76,7 @@ class FileServiceTest {
         File saved = file(7, owner.getId());
         FileResponseDto expected = response(7, OWNER);
 
-        when(userRepository.findByUsernameAndDeletedAtIsNull(OWNER)).thenReturn(Mono.just(owner));
+        when(userRepository.findCallerOrThrow(OWNER)).thenReturn(Mono.just(owner));
         when(s3Storage.upload(any(), any(), any())).thenReturn(Mono.empty());
         when(fileRepository.save(any(File.class))).thenReturn(Mono.just(saved));
         when(eventService.create(1, 7, EventStatus.CREATED)).thenReturn(Mono.empty());
@@ -104,7 +104,7 @@ class FileServiceTest {
         User owner = user(1, OWNER, Role.USER);
         FilePart filePart = filePart("passport.pdf", "hello", MediaType.APPLICATION_PDF);
 
-        when(userRepository.findByUsernameAndDeletedAtIsNull(OWNER)).thenReturn(Mono.just(owner));
+        when(userRepository.findCallerOrThrow(OWNER)).thenReturn(Mono.just(owner));
         when(s3Storage.upload(any(), any(), any())).thenReturn(Mono.empty());
         when(fileRepository.save(any(File.class))).thenReturn(Mono.just(file(7, 1)));
         when(eventService.create(anyInt(), anyInt(), any())).thenReturn(Mono.empty());
@@ -129,7 +129,7 @@ class FileServiceTest {
     void getAllScopedForUser() {
         // given
         User caller = user(1, OWNER, Role.USER);
-        when(userRepository.findByUsernameAndDeletedAtIsNull(OWNER)).thenReturn(Mono.just(caller));
+        when(userRepository.findCallerOrThrow(OWNER)).thenReturn(Mono.just(caller));
         when(fileRepository.findAllResponsesByUserId(1)).thenReturn(Flux.just(response(7, OWNER)));
 
         // when
@@ -148,7 +148,7 @@ class FileServiceTest {
     void getAllUnscopedForModerator() {
         // given
         User caller = user(2, MODERATOR, Role.MODERATOR);
-        when(userRepository.findByUsernameAndDeletedAtIsNull(MODERATOR)).thenReturn(Mono.just(caller));
+        when(userRepository.findCallerOrThrow(MODERATOR)).thenReturn(Mono.just(caller));
         when(fileRepository.findAllResponses()).thenReturn(Flux.just(response(7, OWNER)));
 
         // when
@@ -167,7 +167,7 @@ class FileServiceTest {
     void getByIdHidesForeignFile() {
         // given
         User caller = user(3, "kolya", Role.USER);
-        when(userRepository.findByUsernameAndDeletedAtIsNull("kolya")).thenReturn(Mono.just(caller));
+        when(userRepository.findCallerOrThrow("kolya")).thenReturn(Mono.just(caller));
         when(fileRepository.findResponseById(7)).thenReturn(Mono.just(response(7, OWNER)));
 
         // when
@@ -185,7 +185,7 @@ class FileServiceTest {
         // given
         User caller = user(2, MODERATOR, Role.MODERATOR);
         FileResponseDto expected = response(7, OWNER);
-        when(userRepository.findByUsernameAndDeletedAtIsNull(MODERATOR)).thenReturn(Mono.just(caller));
+        when(userRepository.findCallerOrThrow(MODERATOR)).thenReturn(Mono.just(caller));
         when(fileRepository.findResponseById(7)).thenReturn(Mono.just(expected));
 
         // when
@@ -205,7 +205,7 @@ class FileServiceTest {
         File stored = file(7, 1);
         FileUpdateRequestDto request = new FileUpdateRequestDto("renamed.pdf", FileStatus.ARCHIVED);
 
-        when(userRepository.findByUsernameAndDeletedAtIsNull(MODERATOR)).thenReturn(Mono.just(caller));
+        when(userRepository.findCallerOrThrow(MODERATOR)).thenReturn(Mono.just(caller));
         when(fileRepository.findByIdAndDeletedAtIsNull(7)).thenReturn(Mono.just(stored));
         when(fileRepository.save(stored)).thenReturn(Mono.just(stored));
         when(eventService.create(2, 7, EventStatus.UPDATED)).thenReturn(Mono.empty());
@@ -226,7 +226,7 @@ class FileServiceTest {
     void updateRefusesForeignFile() {
         // given
         User caller = user(3, "kolya", Role.USER);
-        when(userRepository.findByUsernameAndDeletedAtIsNull("kolya")).thenReturn(Mono.just(caller));
+        when(userRepository.findCallerOrThrow("kolya")).thenReturn(Mono.just(caller));
         when(fileRepository.findByIdAndDeletedAtIsNull(7)).thenReturn(Mono.just(file(7, 1)));
 
         // when
@@ -248,7 +248,7 @@ class FileServiceTest {
         User caller = user(1, OWNER, Role.USER);
         File stored = file(7, 1);
 
-        when(userRepository.findByUsernameAndDeletedAtIsNull(OWNER)).thenReturn(Mono.just(caller));
+        when(userRepository.findCallerOrThrow(OWNER)).thenReturn(Mono.just(caller));
         when(fileRepository.findByIdAndDeletedAtIsNull(7)).thenReturn(Mono.just(stored));
         when(fileRepository.save(stored)).thenReturn(Mono.just(stored));
         when(eventService.create(1, 7, EventStatus.DELETED)).thenReturn(Mono.empty());
@@ -269,7 +269,8 @@ class FileServiceTest {
     @DisplayName("a token naming a user who no longer exists is rejected before anything is read")
     void unknownCallerIsRejected() {
         // given
-        when(userRepository.findByUsernameAndDeletedAtIsNull("ghost")).thenReturn(Mono.empty());
+        when(userRepository.findCallerOrThrow("ghost"))
+                .thenReturn(Mono.error(new UserNotFoundException("ghost")));
 
         // when
         Mono<FileResponseDto> result = fileService.getById(7, "ghost");

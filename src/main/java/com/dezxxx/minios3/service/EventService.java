@@ -5,14 +5,13 @@ import com.dezxxx.minios3.dto.event.EventResponseDto;
 import com.dezxxx.minios3.dto.event.EventUpdateRequestDto;
 import com.dezxxx.minios3.exception.EventNotFoundException;
 import com.dezxxx.minios3.exception.FileNotFoundException;
-import com.dezxxx.minios3.exception.UserNotFoundException;
 import com.dezxxx.minios3.model.Event;
 import com.dezxxx.minios3.model.User;
 import com.dezxxx.minios3.model.status.EventStatus;
-import com.dezxxx.minios3.model.status.Role;
 import com.dezxxx.minios3.repository.EventRepository;
 import com.dezxxx.minios3.repository.FileRepository;
 import com.dezxxx.minios3.repository.UserRepository;
+import com.dezxxx.minios3.util.AccessRules;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -74,14 +73,14 @@ public class EventService {
         return findCaller(username)
                 .flatMap(caller -> eventRepository.findResponseById(id)
                         .switchIfEmpty(Mono.error(new EventNotFoundException(id)))
-                        .filter(event -> maySee(caller, event.username()))
+                        .filter(event -> AccessRules.maySee(caller, event.username()))
                         .switchIfEmpty(Mono.error(new EventNotFoundException(id))));
     }
 
     /** Backs GET /events. A USER reads their own history, the other two read all of it. */
     public Flux<EventResponseDto> getAll(String username) {
         return findCaller(username)
-                .flatMapMany(caller -> readsEverything(caller)
+                .flatMapMany(caller -> AccessRules.readsEverything(caller)
                         ? eventRepository.findAllResponses()
                         : eventRepository.findAllResponsesByUserId(caller.getId()));
     }
@@ -137,21 +136,12 @@ public class EventService {
     private Mono<Event> findVisible(Integer id, User caller) {
         return eventRepository.findByIdAndDeletedAtIsNull(id)
                 .switchIfEmpty(Mono.error(new EventNotFoundException(id)))
-                .filter(event -> readsEverything(caller) || event.getUserId().equals(caller.getId()))
+                .filter(event -> AccessRules.readsEverything(caller)
+                        || event.getUserId().equals(caller.getId()))
                 .switchIfEmpty(Mono.error(new EventNotFoundException(id)));
     }
 
     private Mono<User> findCaller(String username) {
-        return userRepository.findByUsernameAndDeletedAtIsNull(username)
-                .switchIfEmpty(Mono.error(new UserNotFoundException(username)));
-    }
-
-    private boolean maySee(User caller, String actorUsername) {
-        return readsEverything(caller) || caller.getUsername().equals(actorUsername);
-    }
-
-    /** ADMIN and MODERATOR read every event; the specification says so in as many words. */
-    private boolean readsEverything(User caller) {
-        return caller.getRole() != Role.USER;
+        return userRepository.findCallerOrThrow(username);
     }
 }

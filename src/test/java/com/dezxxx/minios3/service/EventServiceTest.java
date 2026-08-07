@@ -61,7 +61,7 @@ class EventServiceTest {
     void getAllScopedForUser() {
         // given
         User caller = TestUsersUtil.user(1, VASYA);
-        when(userRepository.findByUsernameAndDeletedAtIsNull(VASYA)).thenReturn(Mono.just(caller));
+        when(userRepository.findCallerOrThrow(VASYA)).thenReturn(Mono.just(caller));
         when(eventRepository.findAllResponsesByUserId(1)).thenReturn(Flux.just(response(5, VASYA)));
 
         // when
@@ -81,7 +81,7 @@ class EventServiceTest {
     void getAllUnscopedForModerator() {
         // given
         User caller = TestUsersUtil.moderator(2, PETYA);
-        when(userRepository.findByUsernameAndDeletedAtIsNull(PETYA)).thenReturn(Mono.just(caller));
+        when(userRepository.findCallerOrThrow(PETYA)).thenReturn(Mono.just(caller));
         when(eventRepository.findAllResponses()).thenReturn(Flux.just(response(5, VASYA)));
 
         // when
@@ -100,7 +100,7 @@ class EventServiceTest {
     void getByIdHidesForeignEntry() {
         // given
         User caller = TestUsersUtil.user(3, "kolya");
-        when(userRepository.findByUsernameAndDeletedAtIsNull("kolya")).thenReturn(Mono.just(caller));
+        when(userRepository.findCallerOrThrow("kolya")).thenReturn(Mono.just(caller));
         when(eventRepository.findResponseById(5)).thenReturn(Mono.just(response(5, VASYA)));
 
         // when
@@ -117,7 +117,7 @@ class EventServiceTest {
     void createRecordsTheCallerAsActor() {
         // given: an administrator files an entry about a file owned by vasya
         User caller = TestUsersUtil.admin(9, "admin");
-        when(userRepository.findByUsernameAndDeletedAtIsNull("admin")).thenReturn(Mono.just(caller));
+        when(userRepository.findCallerOrThrow("admin")).thenReturn(Mono.just(caller));
         when(fileRepository.findByIdAndDeletedAtIsNull(7)).thenReturn(Mono.just(file(7, 1)));
         when(eventRepository.save(any(Event.class))).thenReturn(Mono.just(event(5, 9, 7)));
         when(eventRepository.findResponseById(5)).thenReturn(Mono.just(response(5, "admin")));
@@ -143,7 +143,7 @@ class EventServiceTest {
     void createRejectsUnknownFile() {
         // given
         User caller = TestUsersUtil.admin(9, "admin");
-        when(userRepository.findByUsernameAndDeletedAtIsNull("admin")).thenReturn(Mono.just(caller));
+        when(userRepository.findCallerOrThrow("admin")).thenReturn(Mono.just(caller));
         when(fileRepository.findByIdAndDeletedAtIsNull(404)).thenReturn(Mono.empty());
 
         EventCreateRequestDto requestDto = new EventCreateRequestDto(404, EventStatus.CREATED);
@@ -167,7 +167,7 @@ class EventServiceTest {
         User caller = TestUsersUtil.moderator(2, PETYA);
         Event stored = event(5, 1, 7);
 
-        when(userRepository.findByUsernameAndDeletedAtIsNull(PETYA)).thenReturn(Mono.just(caller));
+        when(userRepository.findCallerOrThrow(PETYA)).thenReturn(Mono.just(caller));
         when(eventRepository.findByIdAndDeletedAtIsNull(5)).thenReturn(Mono.just(stored));
         when(eventRepository.save(stored)).thenReturn(Mono.just(stored));
         when(eventRepository.findResponseById(5)).thenReturn(Mono.just(response(5, VASYA)));
@@ -188,7 +188,7 @@ class EventServiceTest {
         User caller = TestUsersUtil.moderator(2, PETYA);
         Event stored = event(5, 1, 7);
 
-        when(userRepository.findByUsernameAndDeletedAtIsNull(PETYA)).thenReturn(Mono.just(caller));
+        when(userRepository.findCallerOrThrow(PETYA)).thenReturn(Mono.just(caller));
         when(eventRepository.findByIdAndDeletedAtIsNull(5)).thenReturn(Mono.just(stored));
         when(eventRepository.save(stored)).thenReturn(Mono.just(stored));
 

@@ -3,15 +3,14 @@ package com.dezxxx.minios3.service;
 import com.dezxxx.minios3.dto.file.FileResponseDto;
 import com.dezxxx.minios3.dto.file.FileUpdateRequestDto;
 import com.dezxxx.minios3.exception.FileNotFoundException;
-import com.dezxxx.minios3.exception.UserNotFoundException;
 import com.dezxxx.minios3.model.File;
 import com.dezxxx.minios3.model.User;
 import com.dezxxx.minios3.model.status.EventStatus;
 import com.dezxxx.minios3.model.status.FileStatus;
-import com.dezxxx.minios3.model.status.Role;
 import com.dezxxx.minios3.repository.FileRepository;
 import com.dezxxx.minios3.repository.UserRepository;
 import com.dezxxx.minios3.storage.S3Storage;
+import com.dezxxx.minios3.util.AccessRules;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.buffer.DataBufferUtils;
@@ -60,14 +59,14 @@ public class FileService {
         return findCaller(username)
                 .flatMap(caller -> fileRepository.findResponseById(id)
                         .switchIfEmpty(Mono.error(new FileNotFoundException(id)))
-                        .filter(file -> maySee(caller, file.ownerUsername()))
+                        .filter(file -> AccessRules.maySee(caller, file.ownerUsername()))
                         .switchIfEmpty(Mono.error(new FileNotFoundException(id))));
     }
 
     /** Backs GET /files. One path, two answers: your own files, or all of them. */
     public Flux<FileResponseDto> getAll(String username) {
         return findCaller(username)
-                .flatMapMany(caller -> readsEverything(caller)
+                .flatMapMany(caller -> AccessRules.readsEverything(caller)
                         ? fileRepository.findAllResponses()
                         : fileRepository.findAllResponsesByUserId(caller.getId()));
     }
@@ -183,26 +182,12 @@ public class FileService {
     private Mono<File> findOwned(Integer id, User caller) {
         return fileRepository.findByIdAndDeletedAtIsNull(id)
                 .switchIfEmpty(Mono.error(new FileNotFoundException(id)))
-                .filter(file -> readsEverything(caller) || file.getUserId().equals(caller.getId()))
+                .filter(file -> AccessRules.readsEverything(caller)
+                        || file.getUserId().equals(caller.getId()))
                 .switchIfEmpty(Mono.error(new FileNotFoundException(id)));
     }
 
-    /**
-     * The token carries a name; the rules are written in terms of an id and a role, and
-     * both of those live in the database. Keeping them out of the token is what lets a
-     * block or a demotion take effect without waiting for the token to expire.
-     */
     private Mono<User> findCaller(String username) {
-        return userRepository.findByUsernameAndDeletedAtIsNull(username)
-                .switchIfEmpty(Mono.error(new UserNotFoundException(username)));
-    }
-
-    private boolean maySee(User caller, String ownerUsername) {
-        return readsEverything(caller) || caller.getUsername().equals(ownerUsername);
-    }
-
-    /** ADMIN and MODERATOR read every file; the specification says so in as many words. */
-    private boolean readsEverything(User caller) {
-        return caller.getRole() != Role.USER;
+        return userRepository.findCallerOrThrow(username);
     }
 }
